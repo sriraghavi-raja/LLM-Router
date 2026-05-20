@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLM Router - Semantic Caching</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --blue-dark: #0f172a;
+  --blue-mid: #1e3a8a;
+  --blue-light: #3b82f6;
+  --blue-lighter: #60a5fa;
+  --silver: #e2e8f0;
+  --silver-dark: #cbd5e1;
+  --white: #ffffff;
+  --black: #000000;
+  --gray-light: #f8fafc;
+  --gray-dark: #334155;
+  --accent-green: #10b981;
+  --accent-amber: #f59e0b;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: linear-gradient(135deg, var(--blue-dark) 0%, #0d1b2a 100%);
+  color: var(--white);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Subtle animated background pattern */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 20% 50%, rgba(59, 130, 246, 0.05) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(59, 130, 246, 0.03) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.container { position: relative; z-index: 1; max-width: 1600px; margin: 0 auto; }
+
+/* ──────────────────── HEADER ────────────────────── */
+.header {
+  padding: 32px 40px;
+  border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+  background: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(10px);
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.logo-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.logo-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--blue-light) 0%, var(--blue-lighter) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.3);
+}
+
+h1 {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: var(--white);
+}
+
+.tagline {
+  font-size: 14px;
+  color: var(--silver-dark);
+  font-weight: 400;
+}
+
+.nav-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.nav-btn {
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: 1px solid var(--silver-dark);
+  background: transparent;
+  color: var(--silver);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.nav-btn.active {
+  background: var(--blue-light);
+  border-color: var(--blue-light);
+  color: var(--white);
+}
+
+.nav-btn:hover:not(.active) {
+  border-color: var(--blue-light);
+  color: var(--blue-lighter);
+}
+
+/* ──────────────────── MAIN CONTENT ────────────────────── */
+.main {
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+/* ──────────────────── METRICS CARDS ────────────────────── */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+}
+
+.metric-card {
+  padding: 24px;
+  border-radius: 12px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  background: linear-gradient(135deg, rgba(30, 58, 138, 0.4) 0%, rgba(15, 23, 42, 0.6) 100%);
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+}
+
+.metric-card:hover {
+  border-color: var(--blue-light);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.15);
+}
+
+.metric-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--silver-dark);
+  margin-bottom: 12px;
+}
+
+.metric-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--blue-lighter);
+  margin-bottom: 8px;
+}
+
+.metric-sub {
+  font-size: 12px;
+  color: var(--gray-dark);
+}
+
+/* ──────────────────── ARCHITECTURE DIAGRAM ────────────────────── */
+.architecture-section {
+  padding: 48px;
+  border-radius: 14px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  background: linear-gradient(135deg, rgba(30, 58, 138, 0.3) 0%, rgba(15, 23, 42, 0.5) 100%);
+  backdrop-filter: blur(10px);
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--silver-dark);
+  margin-bottom: 20px;
+}
+
+.arch-flow {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  overflow-x: auto;
+  padding: 24px 0;
+}
+
+.arch-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  min-width: 130px;
+  flex-shrink: 0;
+}
+
+.arch-box {
+  width: 100px;
+  height: 100px;
+  border-radius: 14px;
+  border: 2px solid rgba(59, 130, 246, 0.3);
+  background: rgba(59, 130, 246, 0.1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 36px;
+  transition: all 0.3s ease;
+}
+
+.arch-box:hover {
+  border-color: var(--blue-light);
+  background: rgba(59, 130, 246, 0.2);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+  transform: scale(1.05);
+}
+
+.arch-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--silver-dark);
+  text-align: center;
+  max-width: 110px;
+  line-height: 1.3;
+}
+
+.arch-arrow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-top: -20px;
+  margin: 0 8px;
+}
+
+.arrow-line {
+  width: 40px;
+  height: 2.5px;
+  background: linear-gradient(90deg, transparent, var(--blue-light), transparent);
+}
+
+.arrow-text {
+  font-size: 11px;
+  color: var(--gray-dark);
+  font-weight: 500;
+}
+
+/* ──────────────────── QUERY COMPOSER - FULL WIDTH ────────────────────── */
+.query-section {
+  padding: 32px;
+  border-radius: 14px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  background: linear-gradient(135deg, rgba(30, 58, 138, 0.3) 0%, rgba(15, 23, 42, 0.5) 100%);
+  backdrop-filter: blur(10px);
+}
+
+.query-textarea {
+  width: 100%;
+  min-height: 140px;
+  padding: 20px;
+  border-radius: 10px;
+  border: 1px solid var(--silver-dark);
+  background: rgba(15, 23, 42, 0.9);
+  color: var(--white);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  resize: none;
+  transition: all 0.3s ease;
+  outline: none;
+  line-height: 1.6;
+}
+
+.query-textarea:focus {
+  border-color: var(--blue-light);
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+  background: rgba(15, 23, 42, 0.95);
+}
+
+.query-textarea::placeholder {
+  color: var(--gray-dark);
+}
+
+.query-controls {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.btn-send {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 28px;
+  border-radius: 8px;
+  border: none;
+  background: var(--blue-light);
+  color: var(--white);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.btn-send:hover {
+  background: var(--blue-lighter);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+}
+
+.btn-send:active {
+  transform: translateY(0);
+}
+
+.btn-send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: 1px solid var(--silver-dark);
+  background: transparent;
+  color: var(--silver);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-secondary:hover {
+  border-color: var(--blue-light);
+  color: var(--blue-lighter);
+}
+
+.query-status {
+  margin-top: 12px;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--gray-dark);
+  min-height: 20px;
+}
+
+.preset-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.chip {
+  padding: 6px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--silver-dark);
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--silver);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.chip:hover {
+  border-color: var(--blue-light);
+  background: rgba(59, 130, 246, 0.2);
+  color: var(--blue-lighter);
+}
+
+/* ──────────────────── PIPELINE ANIMATION ────────────────────── */
+.pipeline-section {
+  padding: 32px;
+  border-radius: 14px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  background: linear-gradient(135deg, rgba(30, 58, 138, 0.3) 0%, rgba(15, 23, 42, 0.5) 100%);
+  backdrop-filter: blur(10px);
+}
+
+.pipeline {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin: 24px 0;
+  overflow-x: auto;
+  padding: 12px 0;
+}
+
+.pipe-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 100px;
+}
+
+.pipe-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  border: 2px solid var(--silver-dark);
+  background: rgba(59, 130, 246, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pipe-icon.active {
+  border-color: var(--blue-light);
+  background: rgba(59, 130, 246, 0.25);
+  box-shadow: 0 0 30px rgba(59, 130, 246, 0.4);
+  transform: scale(1.1);
+  animation: pulse-glow 1.5s infinite;
+}
+
+.pipe-icon.done-hit {
+  border-color: var(--accent-green);
+  background: rgba(16, 185, 129, 0.2);
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+}
+
+.pipe-icon.done-miss {
+  border-color: var(--accent-amber);
+  background: rgba(245, 158, 11, 0.15);
+}
+
+.pipe-icon.skipped {
+  opacity: 0.3;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.4); }
+  50% { box-shadow: 0 0 40px rgba(59, 130, 246, 0.6); }
+}
+
+.pipe-name {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--silver-dark);
+  text-align: center;
+}
+
+.pipe-arrow {
+  width: 28px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--silver-dark), var(--blue-light), var(--silver-dark));
+  margin-top: -20px;
+}
+
+.pipe-status {
+  font-size: 12px;
+  color: var(--silver);
+  text-align: center;
+  margin-top: 16px;
+  min-height: 24px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ──────────────────── RESPONSE DETAIL ────────────────────── */
+.response-section {
+  padding: 32px;
+  border-radius: 14px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  background: linear-gradient(135deg, rgba(30, 58, 138, 0.3) 0%, rgba(15, 23, 42, 0.5) 100%);
+  backdrop-filter: blur(10px);
+}
+
+.response-empty {
+  padding: 60px 40px;
+  text-align: center;
+  color: var(--gray-dark);
+}
+
+.response-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.response-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.response-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--silver-dark);
+}
+
+.response-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--blue-lighter);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.response-body {
+  padding: 16px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid var(--silver-dark);
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--silver);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+/* ──────────────────── VISUALIZATION SECTION ────────────────────── */
+.viz-section {
+  display: block;
+  animation: fadeIn 0.3s ease;
+  margin-top: 40px;
+}
+
+.viz-section.active {
+  display: block;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-bottom: 32px;
+}
+
+.chart-card {
+  padding: 28px;
+  border-radius: 14px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  background: linear-gradient(135deg, rgba(30, 58, 138, 0.3) 0%, rgba(15, 23, 42, 0.5) 100%);
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+}
+
+.chart-card:hover {
+  border-color: var(--blue-light);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.15);
+}
+
+.chart-title {
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--silver-dark);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ──────────────────── LOG TABLE ────────────────────── */
+.log-section {
+  padding: 28px;
+  border-radius: 14px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  background: linear-gradient(135deg, rgba(30, 58, 138, 0.3) 0%, rgba(15, 23, 42, 0.5) 100%);
+  backdrop-filter: blur(10px);
+  overflow-x: auto;
+}
+
+.log-section .section-title {
+  margin-bottom: 20px;
+}
+
+.log-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.log-table th {
+  padding: 12px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--silver-dark);
+  border-bottom: 2px solid rgba(59, 130, 246, 0.2);
+}
+
+.log-table td {
+  padding: 12px;
+  border-bottom: 1px solid rgba(59, 130, 246, 0.1);
+  font-size: 12px;
+}
+
+.log-table tr:hover td {
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 16px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.badge-hit {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--accent-green);
+  border: 1px solid var(--accent-green);
+}
+
+.badge-miss {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--accent-amber);
+  border: 1px solid var(--accent-amber);
+}
+
+/* Responsive */
+@media (max-width: 1400px) {
+  .charts-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+  .query-controls {
+    flex-direction: column;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<!-- HEADER -->
+<div class="header">
+<div class="header-content">
+<div class="logo-section">
+<div class="logo-icon">⚡</div>
+<div>
+<h1>LLM Router - Semantic Caching</h1>
+<p class="tagline">Intelligent Model Routing with Semantic Cache Intelligence</p>
+</div>
+</div>
+<div class="nav-buttons">
+<button class="nav-btn active" onclick="switchView('dashboard')">Dashboard</button>
+
+</div>
+</div>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="main">
+
+<!-- METRICS -->
+<div class="metrics-grid">
+<div class="metric-card">
+<div class="metric-label">Total Requests</div>
+<div class="metric-value" id="m-total">0</div>
+<div class="metric-sub">lifetime</div>
+</div>
+<div class="metric-card">
+<div class="metric-label">Cache Hits</div>
+<div class="metric-value" id="m-hits">0</div>
+<div class="metric-sub">from Redis</div>
+</div>
+<div class="metric-card">
+<div class="metric-label">Cache Misses</div>
+<div class="metric-value" id="m-misses">0</div>
+<div class="metric-sub">LLM called</div>
+</div>
+<div class="metric-card">
+<div class="metric-label">Hit Rate</div>
+<div class="metric-value" id="m-rate">—</div>
+<div class="metric-sub">efficiency</div>
+</div>
+<div class="metric-card">
+<div class="metric-label">Avg Latency</div>
+<div class="metric-value" id="m-latency">—</div>
+<div class="metric-sub">ms per request</div>
+</div>
+</div>
+
+<!-- ARCHITECTURE -->
+<div class="architecture-section">
+<div class="section-title">System Architecture</div>
+<div class="arch-flow">
+<div class="arch-node">
+<div class="arch-box">🧑</div>
+<div class="arch-label">Client</div>
+</div>
+<div class="arch-arrow"><div class="arrow-line"></div><div class="arrow-text">query</div></div>
+<div class="arch-node">
+<div class="arch-box">⚡</div>
+<div class="arch-label">FastAPI</div>
+</div>
+<div class="arch-arrow"><div class="arrow-line"></div><div class="arrow-text">embed</div></div>
+<div class="arch-node">
+<div class="arch-box">🧠</div>
+<div class="arch-label">Embedder</div>
+</div>
+<div class="arch-arrow"><div class="arrow-line"></div><div class="arrow-text">match</div></div>
+<div class="arch-node">
+<div class="arch-box">🗄️</div>
+<div class="arch-label">Redis</div>
+</div>
+<div class="arch-arrow"><div class="arrow-line"></div><div class="arrow-text">miss?</div></div>
+<div class="arch-node">
+<div class="arch-box">🎯</div>
+<div class="arch-label">Classify</div>
+</div>
+<div class="arch-arrow"><div class="arrow-line"></div><div class="arrow-text">score</div></div>
+<div class="arch-node">
+<div class="arch-box">🤖</div>
+<div class="arch-label">LLM</div>
+</div>
+<div class="arch-arrow"><div class="arrow-line"></div><div class="arrow-text">store</div></div>
+<div class="arch-node">
+<div class="arch-box">✅</div>
+<div class="arch-label">Response</div>
+</div>
+</div>
+</div>
+
+<!-- QUERY COMPOSER -->
+<div class="query-section">
+<div class="section-title">Query Composer</div>
+<textarea id="prompt-input" class="query-textarea" placeholder="Enter your query here...">What is machine learning?</textarea>
+<div class="query-controls">
+<button class="btn-send" id="send-btn" onclick="sendQuery()">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+Send Request
+</button>
+<button class="btn-secondary" onclick="setPreset('similar')">≈ Similar Query</button>
+<button class="btn-secondary" onclick="setPreset('diff')">↔ Different Query</button>
+<button class="btn-secondary" onclick="refreshStats()" style="margin-left: auto;">↺ Refresh Stats</button>
+</div>
+<div class="preset-chips">
+<div class="chip" onclick="setChip('What is machine learning?')">What is ML?</div>
+<div class="chip" onclick="setChip('Explain deep learning')">Explain deep learning</div>
+<div class="chip" onclick="setChip('What is Python?')">What is Python?</div>
+<div class="chip" onclick="setChip('How does REST API work?')">How does REST work?</div>
+<div class="chip" onclick="setChip('What is cloud computing?')">Cloud computing</div>
+</div>
+<div class="query-status" id="send-status"></div>
+</div>
+
+<!-- RESPONSE DETAIL -->
+<div class="response-section">
+<div class="section-title">Response Detail</div>
+<div id="response-empty" class="response-empty" style="padding: 48px 32px;">
+📤 Send a query to see detailed response information
+</div>
+<div id="response-detail" style="display: none;">
+<div class="response-grid">
+<div class="response-item">
+<div class="response-label">Model Used</div>
+<div class="response-value" id="r-model">—</div>
+</div>
+<div class="response-item">
+<div class="response-label">Cache Status</div>
+<div class="response-value" id="r-cache" style="color: var(--accent-amber);">—</div>
+</div>
+<div class="response-item">
+<div class="response-label">Latency (ms)</div>
+<div class="response-value" id="r-latency">—</div>
+</div>
+<div class="response-item">
+<div class="response-label">Complexity Score</div>
+<div class="response-value" id="r-score">—</div>
+</div>
+<div class="response-item">
+<div class="response-label">Cost Estimate</div>
+<div class="response-value" id="r-cost">—</div>
+</div>
+<div class="response-item">
+<div class="response-label">Routed Tier</div>
+<div class="response-value" id="r-tier">—</div>
+</div>
+</div>
+<div style="margin-top: 16px;">
+<div class="response-label" style="margin-bottom: 8px;">Response</div>
+<div class="response-body" id="r-text">—</div>
+</div>
+</div>
+</div>
+
+<!-- PIPELINE ANIMATION -->
+<div class="pipeline-section">
+<div class="section-title">Request Pipeline Animation</div>
+<div id="pipe-badge" style="font-size: 12px; color: var(--silver-dark); margin-bottom: 8px;">idle</div>
+<div class="pipeline">
+<div class="pipe-node"><div class="pipe-icon" id="p-client">🧑</div><div class="pipe-name">Client</div></div>
+<div class="pipe-arrow"></div>
+<div class="pipe-node"><div class="pipe-icon" id="p-api">⚡</div><div class="pipe-name">FastAPI</div></div>
+<div class="pipe-arrow"></div>
+<div class="pipe-node"><div class="pipe-icon" id="p-embed">🧠</div><div class="pipe-name">Embedder</div></div>
+<div class="pipe-arrow"></div>
+<div class="pipe-node"><div class="pipe-icon" id="p-redis">🗄️</div><div class="pipe-name">Redis</div></div>
+<div class="pipe-arrow"></div>
+<div class="pipe-node"><div class="pipe-icon" id="p-classify">🎯</div><div class="pipe-name">Classifier</div></div>
+<div class="pipe-arrow"></div>
+<div class="pipe-node"><div class="pipe-icon" id="p-llm">🤖</div><div class="pipe-name">LLM</div></div>
+<div class="pipe-arrow"></div>
+<div class="pipe-node"><div class="pipe-icon" id="p-store">💾</div><div class="pipe-name">Store</div></div>
+<div class="pipe-arrow"></div>
+<div class="pipe-node"><div class="pipe-icon" id="p-done">✅</div><div class="pipe-name">Response</div></div>
+</div>
+<div class="pipe-status" id="pipe-status">Send a query to watch the pipeline animate</div>
+</div>
+
+<!-- VISUALIZATIONS SECTION -->
+<div class="viz-section" id="viz-dashboard">
+<div class="section-title" style="margin-bottom: 28px; font-size: 16px; letter-spacing: 0.08em;">📊 Performance Analytics & Insights</div>
+<div class="charts-grid">
+<div class="chart-card">
+<div class="chart-title">🎯 Cache Hit / Miss Distribution</div>
+<canvas id="chart-cache" height="220"></canvas>
+</div>
+<div class="chart-card">
+<div class="chart-title">🤖 LLM Model Usage</div>
+<canvas id="chart-model" height="220"></canvas>
+</div>
+<div class="chart-card">
+<div class="chart-title">⏱️ Latency Timeline</div>
+<canvas id="chart-latency" height="220"></canvas>
+</div>
+</div>
+
+<!-- REQUEST LOG -->
+<div style="margin-top: 20px;">
+<div class="log-section">
+<div class="section-title">Request History</div>
+<table class="log-table">
+<thead>
+<tr>
+<th style="width: 40px">#</th>
+<th>Query</th>
+<th>Status</th>
+<th>Model</th>
+<th>Latency</th>
+<th>Score</th>
+<th>Cost</th>
+</tr>
+</thead>
+<tbody id="log-body">
+<tr><td colspan="7" style="text-align: center; padding: 28px; color: var(--gray-dark);">No requests yet</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+
+</div>
+
+</div>
+
+<script>
+const API = 'http://localhost:8000';
+let stats = { total: 0, hits: 0, misses: 0, latencies: [] };
+let modelCounts = {};
+let requestLog = [];
+let cacheChart, modelChart, latencyChart;
+
+const PRESETS = {
+  similar: [
+    'Explain machine learning',
+    'Tell me about ML',
+    'What does machine learning mean?',
+    'Describe ML concepts'
+  ],
+  diff: [
+    'What is the capital of France?',
+    'How does photosynthesis work?',
+    'Explain quantum computing',
+    'What is blockchain?'
+  ]
+};
+
+function setChip(text) {
+  document.getElementById('prompt-input').value = text;
+}
+
+function setPreset(type) {
+  const inp = document.getElementById('prompt-input');
+  const opts = PRESETS[type].filter(p => p !== inp.value);
+  if (opts.length > 0) {
+    inp.value = opts[Math.floor(Math.random() * opts.length)];
+  }
+}
+
+function switchView(view) {
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  
+  if (view === 'dashboard') {
+    document.getElementById('viz-dashboard').classList.remove('active');
+  } else {
+    document.getElementById('viz-dashboard').classList.add('active');
+  }
+}
+
+function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+const PIPE_IDS = ['p-client', 'p-api', 'p-embed', 'p-redis', 'p-classify', 'p-llm', 'p-store', 'p-done'];
+
+function resetPipe() {
+  PIPE_IDS.forEach(id => {
+    const e = document.getElementById(id);
+    e.className = 'pipe-icon';
+  });
+}
+
+async function animatePipe(cacheHit) {
+  resetPipe();
+  document.getElementById('pipe-badge').textContent = 'processing...';
+  document.getElementById('pipe-badge').style.color = 'var(--blue-lighter)';
+
+  const hitPath = [
+    'p-client', 'p-api', 'p-embed', 'p-redis', 'p-done'
+  ];
+  const missPath = [
+    'p-client', 'p-api', 'p-embed', 'p-redis', 'p-classify', 'p-llm', 'p-store', 'p-done'
+  ];
+
+  const path = cacheHit ? hitPath : missPath;
+  for (let i = 0; i < path.length; i++) {
+    const id = path[i];
+    document.getElementById(id).classList.add('active');
+    await sleep(350);
+    document.getElementById(id).classList.remove('active');
+    document.getElementById(id).classList.add(cacheHit ? 'done-hit' : (id === 'p-redis' ? 'done-miss' : 'done-hit'));
+  }
+
+  if (cacheHit) {
+    ['p-classify', 'p-llm', 'p-store'].forEach(id => {
+      document.getElementById(id).classList.add('skipped');
+    });
+  }
+
+  document.getElementById('pipe-badge').textContent = cacheHit ? '⚡ Cache HIT' : '🤖 LLM CALL';
+  document.getElementById('pipe-badge').style.color = cacheHit ? 'var(--accent-green)' : 'var(--accent-amber)';
+}
+
+function estimateComplexity(prompt) {
+  const p = prompt.toLowerCase();
+  let score = Math.min(prompt.split(' ').length / 300, 1) * 0.3;
+  if (['implement', 'code', 'function', 'algorithm'].some(k => p.includes(k))) score += 0.4;
+  if (['why', 'explain', 'compare', 'analyze'].some(k => p.includes(k))) score += 0.24;
+  if (['what is', 'define', 'capital'].some(k => p.includes(k))) score -= 0.3;
+  return Math.max(0, Math.min(1, score));
+}
+
+function scoreTier(score) {
+  if (score <= 0.33) return { tier: 'Low', label: 'Ollama (local)', color: 'var(--accent-green)' };
+  if (score <= 0.66) return { tier: 'Mid', label: 'Claude Haiku', color: 'var(--accent-amber)' };
+  return { tier: 'High', label: 'GPT-4o', color: '#ef4444' };
+}
+
+async function sendQuery() {
+  const prompt = document.getElementById('prompt-input').value.trim();
+  if (!prompt) return;
+
+  const btn = document.getElementById('send-btn');
+  btn.disabled = true;
+  document.getElementById('send-status').innerHTML = '<span style="color: var(--blue-light);">⏳ Sending request...</span>';
+
+  let data;
+  try {
+    const res = await fetch(`${API}/v1/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, max_tokens: 200 })
+    });
+    data = await res.json();
+  } catch (e) {
+    document.getElementById('send-status').textContent = '✗ API unreachable';
+    btn.disabled = false;
+    return;
+  }
+
+  resetPipe();
+  await animatePipe(data.cache_hit);
+
+  stats.total++;
+  if (data.cache_hit) stats.hits++; else stats.misses++;
+  stats.latencies.push(data.latency_ms);
+  if (!modelCounts[data.model_used]) modelCounts[data.model_used] = 0;
+  modelCounts[data.model_used]++;
+
+  const complexity = estimateComplexity(prompt);
+  const tier = scoreTier(complexity);
+
+  document.getElementById('response-empty').style.display = 'none';
+  document.getElementById('response-detail').style.display = 'block';
+  document.getElementById('r-model').textContent = data.model_used;
+  document.getElementById('r-cache').textContent = data.cache_hit ? '✓ HIT' : '✗ MISS';
+  document.getElementById('r-cache').style.color = data.cache_hit ? 'var(--accent-green)' : 'var(--accent-amber)';
+  document.getElementById('r-latency').textContent = Math.round(data.latency_ms);
+  document.getElementById('r-cost').textContent = '$' + data.cost_estimate.toFixed(6);
+  document.getElementById('r-score').textContent = complexity.toFixed(2);
+  document.getElementById('r-tier').textContent = tier.label;
+  document.getElementById('r-tier').style.color = tier.color;
+  document.getElementById('r-text').textContent = data.response || '(no response)';
+
+  requestLog.unshift({ n: stats.total, prompt, data, complexity, tier });
+  updateLog();
+
+  document.getElementById('send-status').innerHTML = data.cache_hit
+    ? `<span style="color: var(--accent-green);">✓ Cache HIT in ${Math.round(data.latency_ms)}ms</span>`
+    : `<span style="color: var(--accent-amber);">✗ Cache MISS - ${data.model_used} in ${Math.round(data.latency_ms)}ms</span>`;
+
+  updateMetrics();
+  updateCharts();
+  refreshStats();
+  btn.disabled = false;
+}
+
+function updateLog() {
+  const tbody = document.getElementById('log-body');
+  if (requestLog.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 28px; color: var(--gray-dark);">No requests yet</td></tr>';
+    return;
+  }
+  tbody.innerHTML = requestLog.slice(0, 20).map(r => {
+    const ms = Math.round(r.data.latency_ms);
+    return `<tr>
+      <td>${r.n}</td>
+      <td>${r.prompt.substring(0, 40)}${r.prompt.length > 40 ? '...' : ''}</td>
+      <td><span class="badge ${r.data.cache_hit ? 'badge-hit' : 'badge-miss'}">${r.data.cache_hit ? '● HIT' : '● MISS'}</span></td>
+      <td>${r.data.model_used}</td>
+      <td>${ms}ms</td>
+      <td style="color: ${r.tier.color}">${r.complexity.toFixed(2)}</td>
+      <td>$${r.data.cost_estimate.toFixed(5)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function updateMetrics() {
+  document.getElementById('m-total').textContent = stats.total;
+  document.getElementById('m-hits').textContent = stats.hits;
+  document.getElementById('m-misses').textContent = stats.misses;
+  const rate = stats.total > 0 ? Math.round(stats.hits / stats.total * 100) + '%' : '—';
+  document.getElementById('m-rate').textContent = rate;
+  const avg = stats.latencies.length > 0 ? Math.round(stats.latencies.reduce((a, b) => a + b, 0) / stats.latencies.length) + '' : '—';
+  document.getElementById('m-latency').textContent = avg;
+}
+
+function updateCharts() {
+  const cacheCtx = document.getElementById('chart-cache').getContext('2d');
+  if (cacheChart) cacheChart.destroy();
+  cacheChart = new Chart(cacheCtx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Hits', 'Misses'],
+      datasets: [{
+        data: [stats.hits || 0, stats.misses || 0],
+        backgroundColor: ['#10b981', '#f59e0b'],
+        borderColor: ['#0d9488', '#d97706'],
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      cutout: '70%',
+      plugins: {
+        legend: { labels: { color: '#e2e8f0', font: { size: 12 } } }
+      }
+    }
+  });
+
+  const modelCtx = document.getElementById('chart-model').getContext('2d');
+  if (modelChart) modelChart.destroy();
+  modelChart = new Chart(modelCtx, {
+    type: 'bar',
+    data: {
+      labels: Object.keys(modelCounts).length ? Object.keys(modelCounts) : ['—'],
+      datasets: [{
+        data: Object.values(modelCounts).length ? Object.values(modelCounts) : [0],
+        backgroundColor: '#3b82f6',
+        borderColor: '#60a5fa',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: { x: { ticks: { color: '#e2e8f0' }, grid: { color: 'rgba(59, 130, 246, 0.1)' } } }
+    }
+  });
+
+  const latCtx = document.getElementById('chart-latency').getContext('2d');
+  if (latencyChart) latencyChart.destroy();
+  const latData = stats.latencies.slice(-20);
+  latencyChart = new Chart(latCtx, {
+    type: 'line',
+    data: {
+      labels: latData.map((_, i) => i + 1),
+      datasets: [{
+        data: latData,
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        borderWidth: 2,
+        pointRadius: 4,
+        pointBackgroundColor: '#60a5fa',
+        fill: true,
+        tension: 0.4
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: { y: { ticks: { color: '#e2e8f0' }, grid: { color: 'rgba(59, 130, 246, 0.1)' } } }
+    }
+  });
+}
+
+async function refreshStats() {
+  try {
+    const res = await fetch(`${API}/cache/stats`);
+    const data = await res.json();
+    if (data.total_hits + data.total_misses > 0) {
+      document.getElementById('m-hits').textContent = data.total_hits;
+      document.getElementById('m-misses').textContent = data.total_misses;
+      document.getElementById('m-total').textContent = data.total_hits + data.total_misses;
+      const rate = Math.round(data.hit_rate * 100);
+      document.getElementById('m-rate').textContent = rate + '%';
+    }
+  } catch (e) {}
+}
+
+Chart.defaults.color = '#cbd5e1';
+Chart.defaults.font.family = "'Inter', sans-serif";
+updateCharts();
+refreshStats();
+setInterval(refreshStats, 15000);
+</script>
+</body>
+</html>

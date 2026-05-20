@@ -28,7 +28,7 @@ Intelligent LLM routing with semantic cache intelligence, demonstrating efficien
 - Redis running at localhost:6379
 - Ollama running at localhost:11434
 
-###ScreenShots of the Working
+
 
 <img width="1536" height="662" alt="image" src="https://github.com/user-attachments/assets/dd63d3d8-a05c-4099-be87-e786ee80a8c2" />
 
@@ -114,7 +114,7 @@ The interactive dashboard displays:
 | **Cost Efficient** | Dramatically reduces API costs through cache reuse |
 | **Real-time Monitoring** | Dashboard shows exactly what's happening |
 
-### Example Workflow
+
 
 
 
